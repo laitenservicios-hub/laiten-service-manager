@@ -14,6 +14,22 @@ function App() {
   const [problema, setProblema] = useState("");
   const [ordenes, setOrdenes] = useState([]);
 
+  // 🎨 colores por estado
+  const getColor = (estado) => {
+    switch (estado) {
+      case "pendiente":
+        return "#fff3cd";
+      case "en proceso":
+        return "#cce5ff";
+      case "terminado":
+        return "#d4edda";
+      case "entregado":
+        return "#e2e3e5";
+      default:
+        return "white";
+    }
+  };
+
   // 🔄 cargar órdenes
   const cargarOrdenes = async () => {
     const data = await getDocs(collection(db, "ordenes"));
@@ -26,7 +42,7 @@ function App() {
     setOrdenes(lista);
   };
 
-  // 💾 crear orden (rápido ⚡)
+  // 💾 crear orden
   const crearOrden = async () => {
     if (!cliente || !equipo || !problema) return;
 
@@ -37,7 +53,7 @@ function App() {
       estado: "pendiente"
     };
 
-    // Mostrar instantáneo
+    // ⚡ mostrar instantáneo
     setOrdenes((prev) => [...prev, { ...nuevaOrden, id: Date.now() }]);
 
     setCliente("");
@@ -48,7 +64,7 @@ function App() {
       await addDoc(collection(db, "ordenes"), nuevaOrden);
       cargarOrdenes();
     } catch (error) {
-      console.error("Error al guardar:", error);
+      console.error("Error:", error);
     }
   };
 
@@ -56,13 +72,11 @@ function App() {
   const cambiarEstado = async (id, nuevoEstado) => {
     try {
       const ordenRef = doc(db, "ordenes", id);
-      await updateDoc(ordenRef, {
-        estado: nuevoEstado
-      });
+      await updateDoc(ordenRef, { estado: nuevoEstado });
 
       cargarOrdenes();
     } catch (error) {
-      console.error("Error al actualizar estado:", error);
+      console.error("Error:", error);
     }
   };
 
@@ -108,7 +122,8 @@ function App() {
             border: "1px solid gray",
             margin: 5,
             padding: 10,
-            borderRadius: 8
+            borderRadius: 8,
+            backgroundColor: getColor(o.estado)
           }}
         >
           <p><b>Cliente:</b> {o.cliente}</p>
