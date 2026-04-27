@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  updateDoc
+} from "firebase/firestore";
 
 function App() {
   const [cliente, setCliente] = useState("");
@@ -20,25 +26,46 @@ function App() {
     setOrdenes(lista);
   };
 
-  // 💾 guardar orden
+  // 💾 crear orden (rápido ⚡)
   const crearOrden = async () => {
     if (!cliente || !equipo || !problema) return;
 
-    await addDoc(collection(db, "ordenes"), {
+    const nuevaOrden = {
       cliente,
       equipo,
       problema,
       estado: "pendiente"
-    });
+    };
+
+    // Mostrar instantáneo
+    setOrdenes((prev) => [...prev, { ...nuevaOrden, id: Date.now() }]);
 
     setCliente("");
     setEquipo("");
     setProblema("");
 
-    cargarOrdenes();
+    try {
+      await addDoc(collection(db, "ordenes"), nuevaOrden);
+      cargarOrdenes();
+    } catch (error) {
+      console.error("Error al guardar:", error);
+    }
   };
 
-  // 🚀 cargar al iniciar
+  // 🔄 cambiar estado
+  const cambiarEstado = async (id, nuevoEstado) => {
+    try {
+      const ordenRef = doc(db, "ordenes", id);
+      await updateDoc(ordenRef, {
+        estado: nuevoEstado
+      });
+
+      cargarOrdenes();
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
+    }
+  };
+
   useEffect(() => {
     cargarOrdenes();
   }, []);
@@ -75,11 +102,31 @@ function App() {
       <h3>Órdenes</h3>
 
       {ordenes.map((o) => (
-        <div key={o.id} style={{ border: "1px solid gray", margin: 5, padding: 5 }}>
+        <div
+          key={o.id}
+          style={{
+            border: "1px solid gray",
+            margin: 5,
+            padding: 10,
+            borderRadius: 8
+          }}
+        >
           <p><b>Cliente:</b> {o.cliente}</p>
           <p><b>Equipo:</b> {o.equipo}</p>
           <p><b>Problema:</b> {o.problema}</p>
           <p><b>Estado:</b> {o.estado}</p>
+
+          <button onClick={() => cambiarEstado(o.id, "en proceso")}>
+            En proceso
+          </button>
+
+          <button onClick={() => cambiarEstado(o.id, "terminado")}>
+            Terminado
+          </button>
+
+          <button onClick={() => cambiarEstado(o.id, "entregado")}>
+            Entregado
+          </button>
         </div>
       ))}
     </div>
