@@ -30,18 +30,18 @@ function App() {
     }
   };
 
-  // 🔥 TIEMPO REAL (reemplaza cargarOrdenes)
+  // 🔥 TIEMPO REAL (CORREGIDO)
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "ordenes"),
-      (snapshot) => {
-        const lista = snapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id
-        }));
-        setOrdenes(lista);
-      }
-    );
+    const q = collection(db, "ordenes");
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lista = snapshot.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+
+      setOrdenes(lista);
+    });
 
     return () => unsubscribe();
   }, []);
@@ -57,17 +57,14 @@ function App() {
       estado: "pendiente"
     };
 
-    // ⚡ mostrar instantáneo
-    setOrdenes((prev) => [...prev, { ...nuevaOrden, id: Date.now() }]);
-
-    setCliente("");
-    setEquipo("");
-    setProblema("");
-
     try {
       await addDoc(collection(db, "ordenes"), nuevaOrden);
+
+      setCliente("");
+      setEquipo("");
+      setProblema("");
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error al guardar:", error);
     }
   };
 
@@ -75,9 +72,11 @@ function App() {
   const cambiarEstado = async (id, nuevoEstado) => {
     try {
       const ordenRef = doc(db, "ordenes", id);
-      await updateDoc(ordenRef, { estado: nuevoEstado });
+      await updateDoc(ordenRef, {
+        estado: nuevoEstado
+      });
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error al actualizar estado:", error);
     }
   };
 
