@@ -3,9 +3,9 @@ import { db } from "./firebase";
 import {
   collection,
   addDoc,
-  getDocs,
   doc,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from "firebase/firestore";
 
 function App() {
@@ -30,17 +30,21 @@ function App() {
     }
   };
 
-  // 🔄 cargar órdenes
-  const cargarOrdenes = async () => {
-    const data = await getDocs(collection(db, "ordenes"));
+  // 🔥 TIEMPO REAL (reemplaza cargarOrdenes)
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "ordenes"),
+      (snapshot) => {
+        const lista = snapshot.docs.map((doc) => ({
+          ...doc.data(),
+          id: doc.id
+        }));
+        setOrdenes(lista);
+      }
+    );
 
-    const lista = data.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-
-    setOrdenes(lista);
-  };
+    return () => unsubscribe();
+  }, []);
 
   // 💾 crear orden
   const crearOrden = async () => {
@@ -62,7 +66,6 @@ function App() {
 
     try {
       await addDoc(collection(db, "ordenes"), nuevaOrden);
-      cargarOrdenes();
     } catch (error) {
       console.error("Error:", error);
     }
@@ -73,20 +76,14 @@ function App() {
     try {
       const ordenRef = doc(db, "ordenes", id);
       await updateDoc(ordenRef, { estado: nuevoEstado });
-
-      cargarOrdenes();
     } catch (error) {
       console.error("Error:", error);
     }
   };
 
-  useEffect(() => {
-    cargarOrdenes();
-  }, []);
-
   return (
     <div style={{ padding: 20 }}>
-      <h1>Laiten Service Manager pro</h1>
+      <h1>Laiten Service Manager</h1>
 
       <h3>Nueva Orden</h3>
 
