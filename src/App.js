@@ -86,7 +86,7 @@ function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Laiten Service Manager</h1>
+      <h1>Laiten Service Manager pro</h1>
 
       <h3>Nueva Orden</h3>
 
