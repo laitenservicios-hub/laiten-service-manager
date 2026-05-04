@@ -1,11 +1,3 @@
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
 import { useState, useEffect } from "react";
 import { auth, db } from "./firebase";
 
@@ -31,7 +23,16 @@ import Ordenes from "./Ordenes";
 import Login from "./Login";
 import Layout from "./Layout";
 
-// 🔥 DASHBOARD PRO
+// 📊 GRÁFICA
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
+
 function Home({ user }) {
   const EMPRESA_ID = user.uid;
 
@@ -83,12 +84,6 @@ function Home({ user }) {
   const totalClientes = clientes.length;
 
   // 💰 INGRESOS
-  const dataGrafica = cotizaciones
-  .filter(c => c.estado === "aceptada" && c.createdAt)
-  .map(c => ({
-    fecha: new Date(c.createdAt.seconds * 1000).toLocaleDateString(),
-    ingreso: Number(c.precio || 0)
-  }));
   const ingresos = cotizaciones
     .filter(c => c.estado === "aceptada")
     .reduce((total, c) => total + Number(c.precio || 0), 0);
@@ -99,6 +94,14 @@ function Home({ user }) {
       style: "currency",
       currency: "MXN"
     }).format(n);
+
+  // 📈 DATA GRÁFICA
+  const dataGrafica = cotizaciones
+    .filter(c => c.estado === "aceptada" && c.createdAt)
+    .map(c => ({
+      fecha: new Date(c.createdAt.seconds * 1000).toLocaleDateString(),
+      ingreso: Number(c.precio || 0)
+    }));
 
   return (
     <div className="space-y-6">
@@ -131,19 +134,15 @@ function Home({ user }) {
 
           {ordenes.slice(0, 6).map(o => (
             <div key={o.id} className="border-b py-2 flex justify-between">
-
               <div>
                 <p className="font-medium">{o.cliente}</p>
                 <p className="text-sm text-gray-500">{o.equipo}</p>
               </div>
-
               <span className="text-xs bg-slate-200 px-2 py-1 rounded">
                 {o.estado}
               </span>
-
             </div>
           ))}
-
         </div>
 
         {/* RESUMEN */}
@@ -164,6 +163,20 @@ function Home({ user }) {
 
         </div>
 
+      </div>
+
+      {/* 📊 GRAFICA */}
+      <div className="bg-white p-4 rounded-xl shadow-sm">
+        <h2 className="font-bold mb-4">Ingresos</h2>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={dataGrafica}>
+            <XAxis dataKey="fecha" />
+            <YAxis />
+            <Tooltip />
+            <Line type="monotone" dataKey="ingreso" strokeWidth={3} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
     </div>

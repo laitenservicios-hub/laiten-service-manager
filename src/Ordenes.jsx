@@ -1,170 +1,69 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { db } from "./firebase";
+
 import {
   collection,
-  addDoc,
   onSnapshot,
-  updateDoc,
   doc,
-  arrayUnion,
-  serverTimestamp
+  updateDoc
 } from "firebase/firestore";
 
-function Ordenes({ user }) {
-  const EMPRESA_ID = user.uid;
+// 🧩 COMPONENTES
+import CrearOrden from "./components/CrearOrden";
+import OrdersKanban from "./components/OrdersKanban";
 
+export default function Ordenes({ user }) {
   const [ordenes, setOrdenes] = useState([]);
-  const [clientes, setClientes] = useState([]);
 
-  const [clienteSeleccionado, setClienteSeleccionado] = useState("");
-  const [equipo, setEquipo] = useState("");
-  const [problema, setProblema] = useState("");
-
-  // 🔥 CARGAR DATOS
   useEffect(() => {
+    if (!user) return;
 
-    const unsubOrdenes = onSnapshot(collection(db, "ordenes"), (snapshot) => {
+    const unsub = onSnapshot(collection(db, "ordenes"), (snapshot) => {
       const lista = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(o => o.empresaId === EMPRESA_ID);
+        .filter(o => o.empresaId === user.uid);
 
       setOrdenes(lista);
     });
 
-    const unsubClientes = onSnapshot(collection(db, "clientes"), (snapshot) => {
-      const lista = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(c => c.empresaId === EMPRESA_ID);
+    return () => unsub();
+  }, [user]);
 
-      setClientes(lista);
-    });
-
-    return () => {
-      unsubOrdenes();
-      unsubClientes();
-    };
-
-  }, [EMPRESA_ID]);
-
-  // 🔥 CREAR ORDEN
-  const crearOrden = async () => {
-    if (!clienteSeleccionado || !equipo || !problema) return;
-
-    await addDoc(collection(db, "ordenes"), {
-      empresaId: EMPRESA_ID,
-      cliente: clienteSeleccionado,
-      equipo,
-      problema,
-      estado: "pendiente",
-      createdAt: serverTimestamp(),
-      history: [{ estado: "pendiente", fecha: new Date() }]
-    });
-
-    setEquipo("");
-    setProblema("");
-  };
-
-  // 🔄 CAMBIAR ESTADO
+  // 🔄 cambiar estado
   const cambiarEstado = async (id, estado) => {
-    await updateDoc(doc(db, "ordenes", id), {
-      estado,
-      history: arrayUnion({ estado, fecha: new Date() })
-    });
+    try {
+      await updateDoc(doc(db, "ordenes", id), {
+        estado
+      });
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+    }
   };
+
+  if (!user) {
+    return <p>Cargando usuario...</p>;
+  }
 
   return (
-    <div>
+    <div className="p-6 space-y-6">
 
-      <h1 className="text-2xl font-bold mb-6">Órdenes</h1>
-
-      {/* FORM */}
-      <div className="bg-white p-4 rounded mb-6 flex gap-2 flex-wrap">
-
-        <select
-          className="border p-2"
-          value={clienteSeleccionado}
-          onChange={(e) => setClienteSeleccionado(e.target.value)}
-        >
-          <option value="">Cliente</option>
-          {clientes.map(c => (
-            <option key={c.id}>{c.nombre}</option>
-          ))}
-        </select>
-
-        <input
-          className="border p-2"
-          placeholder="Equipo"
-          value={equipo}
-          onChange={(e) => setEquipo(e.target.value)}
-        />
-
-        <input
-          className="border p-2"
-          placeholder="Problema"
-          value={problema}
-          onChange={(e) => setProblema(e.target.value)}
-        />
-
-        <button
-          onClick={crearOrden}
-          className="bg-indigo-600 text-white px-4 rounded"
-        >
-          Crear
-        </button>
+      {/* HEADER */}
+      <div>
+        <h1 className="text-2xl font-bold">Órdenes</h1>
+        <p className="text-gray-500">
+          Gestión de órdenes de servicio
+        </p>
       </div>
+
+      {/* CREAR ORDEN */}
+      <CrearOrden user={user} />
 
       {/* KANBAN */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-        {["pendiente", "en proceso", "terminado", "entregado"].map((estado) => (
-          <div key={estado} className="bg-slate-200 p-3 rounded">
-
-            <h3 className="font-bold mb-2 capitalize">{estado}</h3>
-
-            {ordenes
-              .filter(o => o.estado === estado)
-              .map(o => (
-                <div key={o.id} className="bg-white p-3 mb-3 rounded shadow-sm">
-
-                  <p className="font-medium">{o.cliente}</p>
-                  <p className="text-sm">{o.equipo}</p>
-                  <p className="text-xs text-gray-500">{o.problema}</p>
-
-                  <div className="flex gap-2 mt-2 flex-wrap">
-
-                    <button
-                      onClick={() => cambiarEstado(o.id, "en proceso")}
-                      className="text-blue-500 text-xs"
-                    >
-                      Proceso
-                    </button>
-
-                    <button
-                      onClick={() => cambiarEstado(o.id, "terminado")}
-                      className="text-green-500 text-xs"
-                    >
-                      OK
-                    </button>
-
-                    <button
-                      onClick={() => cambiarEstado(o.id, "entregado")}
-                      className="text-gray-500 text-xs"
-                    >
-                      Entregado
-                    </button>
-
-                  </div>
-
-                </div>
-              ))}
-
-          </div>
-        ))}
-
-      </div>
+      <OrdersKanban
+        ordenes={ordenes}
+        onChangeStatus={cambiarEstado}
+      />
 
     </div>
   );
 }
-
-export default Ordenes;

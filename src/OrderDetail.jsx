@@ -10,12 +10,12 @@ import {
 
 function OrderDetail() {
   const { id } = useParams();
+
   const [orden, setOrden] = useState(null);
   const [nota, setNota] = useState("");
 
   const [precio, setPrecio] = useState("");
   const [anticipo, setAnticipo] = useState("");
-
   const [prioridad, setPrioridad] = useState("");
 
   useEffect(() => {
@@ -23,13 +23,21 @@ function OrderDetail() {
 
     const unsubscribe = onSnapshot(ref, (docSnap) => {
       if (docSnap.exists()) {
-        setOrden({ id: docSnap.id, ...docSnap.data() });
+        const data = docSnap.data();
+
+        setOrden({ id: docSnap.id, ...data });
+
+        // 🔥 cargar valores actuales en inputs
+        setPrecio(data.precio || "");
+        setAnticipo(data.anticipo || "");
+        setPrioridad(data.prioridad || "");
       }
     });
 
     return () => unsubscribe();
   }, [id]);
 
+  // 🧠 agregar nota
   const agregarNota = async () => {
     if (!nota) return;
 
@@ -49,6 +57,7 @@ function OrderDetail() {
     }
   };
 
+  // 💰 guardar costos
   const guardarCostos = async () => {
     const total = Number(precio);
     const anti = Number(anticipo);
@@ -63,13 +72,30 @@ function OrderDetail() {
         restante: restante
       });
 
-      setPrecio("");
-      setAnticipo("");
     } catch (error) {
       console.error("Error:", error);
     }
   };
 
+  // 🔥 cambiar estado + historial
+  const cambiarEstado = async (nuevoEstado) => {
+    try {
+      const ref = doc(db, "ordenes", id);
+
+      await updateDoc(ref, {
+        estado: nuevoEstado,
+        history: arrayUnion({
+          estado: nuevoEstado,
+          fecha: new Date()
+        })
+      });
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // ⚡ guardar prioridad
   const guardarPrioridad = async () => {
     try {
       const ref = doc(db, "ordenes", id);
@@ -82,78 +108,170 @@ function OrderDetail() {
     }
   };
 
-  if (!orden) return <p>Cargando...</p>;
+  if (!orden) return <p className="p-6">Cargando...</p>;
 
   return (
-    <div style={{ padding: 20 }}>
-      <Link to="/">← Volver</Link>
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
 
-      <h2>Detalle de Orden</h2>
+      <Link to="/ordenes" className="text-blue-500">
+        ← Volver
+      </Link>
 
-      <p><b>Cliente:</b> {orden.cliente}</p>
-      <p><b>Equipo:</b> {orden.equipo}</p>
-      <p><b>Problema:</b> {orden.problema}</p>
-      <p><b>Estado:</b> {orden.estado}</p>
+      <h2 className="text-2xl font-bold">Detalle de Orden</h2>
 
-      <h3>Prioridad</h3>
+      {/* INFO */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <p><b>Cliente:</b> {orden.cliente}</p>
+        <p><b>Equipo:</b> {orden.equipo}</p>
+        <p><b>Problema:</b> {orden.problema}</p>
+      </div>
 
-      <p><b>Actual:</b> {orden.prioridad}</p>
+      {/* ESTADO */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">Estado</h3>
 
-      <select
-        value={prioridad}
-        onChange={(e) => setPrioridad(e.target.value)}
-      >
-        <option value="">Seleccionar</option>
-        <option value="alta">Alta</option>
-        <option value="media">Media</option>
-        <option value="baja">Baja</option>
-      </select>
+        <p className="mb-2"><b>Actual:</b> {orden.estado}</p>
 
-      <button onClick={guardarPrioridad}>
-        Guardar prioridad
-      </button>
+        <select
+          value={orden.estado}
+          onChange={(e) => cambiarEstado(e.target.value)}
+          className="border p-2 rounded w-full"
+        >
+          <option value="pendiente">Pendiente</option>
+          <option value="en proceso">En proceso</option>
+          <option value="terminado">Terminado</option>
+          <option value="entregado">Entregado</option>
+        </select>
+      </div>
 
-      <h3>Costos</h3>
+      {/* PRIORIDAD */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">Prioridad</h3>
 
-      <p><b>Total:</b> $ {orden.precio}</p>
-      <p><b>Anticipo:</b> $ {orden.anticipo}</p>
-      <p><b>Restante:</b> $ {orden.restante}</p>
+        <p>
+          <b>Actual:</b>{" "}
+          <span className={
+            orden.prioridad === "alta"
+              ? "text-red-500"
+              : orden.prioridad === "media"
+              ? "text-yellow-500"
+              : "text-green-500"
+          }>
+            {orden.prioridad || "sin definir"}
+          </span>
+        </p>
 
-      <input placeholder="Total" value={precio} onChange={(e) => setPrecio(e.target.value)} />
-      <input placeholder="Anticipo" value={anticipo} onChange={(e) => setAnticipo(e.target.value)} />
-      <button onClick={guardarCostos}>Guardar costos</button>
+        <select
+          value={prioridad}
+          onChange={(e) => setPrioridad(e.target.value)}
+          className="border p-2 rounded w-full mt-2"
+        >
+          <option value="">Seleccionar</option>
+          <option value="alta">Alta</option>
+          <option value="media">Media</option>
+          <option value="baja">Baja</option>
+        </select>
 
-      <h3>Agregar nota técnica</h3>
+        <button
+          onClick={guardarPrioridad}
+          className="mt-2 bg-blue-500 text-white px-3 py-1 rounded"
+        >
+          Guardar prioridad
+        </button>
+      </div>
 
-      <input
-        placeholder="Ej: Se cambió pantalla"
-        value={nota}
-        onChange={(e) => setNota(e.target.value)}
-      />
+      {/* COSTOS */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">Costos</h3>
 
-      <button onClick={agregarNota}>Guardar nota</button>
+        <p><b>Total:</b> $ {orden.precio || 0}</p>
+        <p><b>Anticipo:</b> $ {orden.anticipo || 0}</p>
+        <p><b>Restante:</b> $ {orden.restante || 0}</p>
 
-      <h3>Notas</h3>
+        <div className="flex gap-2 mt-2">
+          <input
+            placeholder="Total"
+            value={precio}
+            onChange={(e) => setPrecio(e.target.value)}
+            className="border p-2 rounded w-full"
+          />
 
-      {orden.notas?.length ? (
-        orden.notas.map((n, i) => (
-          <div key={i}>
-            <p>{n.texto}</p>
-            <small>{new Date(n.fecha).toLocaleString()}</small>
-          </div>
-        ))
-      ) : (
-        <p>No hay notas</p>
-      )}
-
-      <h3>Historial</h3>
-
-      {orden.history?.map((h, i) => (
-        <div key={i}>
-          <p>{h.estado}</p>
-          <small>{new Date(h.fecha).toLocaleString()}</small>
+          <input
+            placeholder="Anticipo"
+            value={anticipo}
+            onChange={(e) => setAnticipo(e.target.value)}
+            className="border p-2 rounded w-full"
+          />
         </div>
-      ))}
+
+        <button
+          onClick={guardarCostos}
+          className="mt-2 bg-green-500 text-white px-3 py-1 rounded"
+        >
+          Guardar costos
+        </button>
+      </div>
+
+      {/* NOTAS */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">Notas técnicas</h3>
+
+        <div className="flex gap-2">
+          <input
+            placeholder="Ej: Se cambió pantalla"
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            className="border p-2 rounded w-full"
+          />
+
+          <button
+            onClick={agregarNota}
+            className="bg-indigo-500 text-white px-3 rounded"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {orden.notas?.length ? (
+            orden.notas.map((n, i) => (
+              <div key={i} className="bg-gray-100 p-2 rounded">
+                <p>{n.texto}</p>
+                <small className="text-gray-500">
+                  {n.fecha?.seconds
+                    ? new Date(n.fecha.seconds * 1000).toLocaleString()
+                    : new Date(n.fecha).toLocaleString()}
+                </small>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500">No hay notas</p>
+          )}
+        </div>
+      </div>
+
+      {/* HISTORIAL */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">Historial</h3>
+
+        <div className="space-y-2">
+          {orden.history?.length ? (
+            orden.history.map((h, i) => (
+              <div key={i} className="bg-gray-100 p-2 rounded">
+                <p>{h.estado}</p>
+                <small className="text-gray-500">
+                  {h.fecha?.seconds
+                    ? new Date(h.fecha.seconds * 1000).toLocaleString()
+                    : new Date(h.fecha).toLocaleString()}
+                </small>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500">Sin historial</p>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 }
