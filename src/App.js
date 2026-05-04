@@ -1,146 +1,207 @@
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
 import { useState, useEffect } from "react";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
+
 import {
   collection,
-  addDoc,
-  doc,
-  updateDoc,
   onSnapshot
 } from "firebase/firestore";
 
-function App() {
-  const [cliente, setCliente] = useState("");
-  const [equipo, setEquipo] = useState("");
-  const [problema, setProblema] = useState("");
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route
+} from "react-router-dom";
+
+import { onAuthStateChanged } from "firebase/auth";
+
+// 🔹 PÁGINAS
+import Clientes from "./Clientes";
+import Cotizaciones from "./Cotizaciones";
+import Ordenes from "./Ordenes";
+
+// 🔹 UI
+import Login from "./Login";
+import Layout from "./Layout";
+
+// 🔥 DASHBOARD PRO
+function Home({ user }) {
+  const EMPRESA_ID = user.uid;
+
   const [ordenes, setOrdenes] = useState([]);
+  const [cotizaciones, setCotizaciones] = useState([]);
+  const [clientes, setClientes] = useState([]);
 
-  // 🎨 colores por estado
-  const getColor = (estado) => {
-    switch (estado) {
-      case "pendiente":
-        return "#fff3cd";
-      case "en proceso":
-        return "#cce5ff";
-      case "terminado":
-        return "#d4edda";
-      case "entregado":
-        return "#e2e3e5";
-      default:
-        return "white";
-    }
-  };
-
-  // 🔥 TIEMPO REAL (CORREGIDO)
   useEffect(() => {
-    const q = collection(db, "ordenes");
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const lista = snapshot.docs.map((doc) => ({
-        ...doc.data(),
-        id: doc.id
-      }));
+    const unsubOrdenes = onSnapshot(collection(db, "ordenes"), (snapshot) => {
+      const lista = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(o => o.empresaId === EMPRESA_ID);
 
       setOrdenes(lista);
     });
 
-    return () => unsubscribe();
-  }, []);
+    const unsubCot = onSnapshot(collection(db, "cotizaciones"), (snapshot) => {
+      const lista = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(c => c.empresaId === EMPRESA_ID);
 
-  // 💾 crear orden
-  const crearOrden = async () => {
-    if (!cliente || !equipo || !problema) return;
+      setCotizaciones(lista);
+    });
 
-    const nuevaOrden = {
-      cliente,
-      equipo,
-      problema,
-      estado: "pendiente"
+    const unsubClientes = onSnapshot(collection(db, "clientes"), (snapshot) => {
+      const lista = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(c => c.empresaId === EMPRESA_ID);
+
+      setClientes(lista);
+    });
+
+    return () => {
+      unsubOrdenes();
+      unsubCot();
+      unsubClientes();
     };
 
-    try {
-      await addDoc(collection(db, "ordenes"), nuevaOrden);
+  }, [EMPRESA_ID]);
 
-      setCliente("");
-      setEquipo("");
-      setProblema("");
-    } catch (error) {
-      console.error("Error al guardar:", error);
-    }
-  };
+  // 📊 MÉTRICAS
+  const pendientes = ordenes.filter(o => o.estado === "pendiente").length;
+  const proceso = ordenes.filter(o => o.estado === "en proceso").length;
+  const terminadas = ordenes.filter(o => o.estado === "terminado").length;
+  const entregadas = ordenes.filter(o => o.estado === "entregado").length;
 
-  // 🔄 cambiar estado
-  const cambiarEstado = async (id, nuevoEstado) => {
-    try {
-      const ordenRef = doc(db, "ordenes", id);
-      await updateDoc(ordenRef, {
-        estado: nuevoEstado
-      });
-    } catch (error) {
-      console.error("Error al actualizar estado:", error);
-    }
-  };
+  const totalCotizaciones = cotizaciones.length;
+  const totalClientes = clientes.length;
+
+  // 💰 INGRESOS
+  const dataGrafica = cotizaciones
+  .filter(c => c.estado === "aceptada" && c.createdAt)
+  .map(c => ({
+    fecha: new Date(c.createdAt.seconds * 1000).toLocaleDateString(),
+    ingreso: Number(c.precio || 0)
+  }));
+  const ingresos = cotizaciones
+    .filter(c => c.estado === "aceptada")
+    .reduce((total, c) => total + Number(c.precio || 0), 0);
+
+  // 💵 FORMATO
+  const formato = (n) =>
+    new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN"
+    }).format(n);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Laiten Service Manager</h1>
+    <div className="space-y-6">
 
-      <h3>Nueva Orden</h3>
+      {/* HEADER */}
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-gray-500">Resumen general del negocio</p>
+      </div>
 
-      <input
-        placeholder="Cliente"
-        value={cliente}
-        onChange={(e) => setCliente(e.target.value)}
-      />
-      <br />
+      {/* CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
 
-      <input
-        placeholder="Equipo"
-        value={equipo}
-        onChange={(e) => setEquipo(e.target.value)}
-      />
-      <br />
+        <Card title="Ingresos" value={formato(ingresos)} color="bg-emerald-500" />
+        <Card title="Clientes" value={totalClientes} color="bg-blue-500" />
+        <Card title="Cotizaciones" value={totalCotizaciones} color="bg-yellow-500" />
+        <Card title="Pendientes" value={pendientes} color="bg-orange-500" />
+        <Card title="En proceso" value={proceso} color="bg-indigo-500" />
+        <Card title="Terminadas" value={terminadas} color="bg-green-500" />
+        <Card title="Entregadas" value={entregadas} color="bg-gray-500" />
 
-      <input
-        placeholder="Problema"
-        value={problema}
-        onChange={(e) => setProblema(e.target.value)}
-      />
-      <br />
+      </div>
 
-      <button onClick={crearOrden}>Crear Orden</button>
+      {/* GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <h3>Órdenes</h3>
+        {/* ÓRDENES */}
+        <div className="bg-white p-4 rounded-xl shadow-sm col-span-2">
+          <h2 className="font-bold mb-4">Órdenes recientes</h2>
 
-      {ordenes.map((o) => (
-        <div
-          key={o.id}
-          style={{
-            border: "1px solid gray",
-            margin: 5,
-            padding: 10,
-            borderRadius: 8,
-            backgroundColor: getColor(o.estado)
-          }}
-        >
-          <p><b>Cliente:</b> {o.cliente}</p>
-          <p><b>Equipo:</b> {o.equipo}</p>
-          <p><b>Problema:</b> {o.problema}</p>
-          <p><b>Estado:</b> {o.estado}</p>
+          {ordenes.slice(0, 6).map(o => (
+            <div key={o.id} className="border-b py-2 flex justify-between">
 
-          <button onClick={() => cambiarEstado(o.id, "en proceso")}>
-            En proceso
-          </button>
+              <div>
+                <p className="font-medium">{o.cliente}</p>
+                <p className="text-sm text-gray-500">{o.equipo}</p>
+              </div>
 
-          <button onClick={() => cambiarEstado(o.id, "terminado")}>
-            Terminado
-          </button>
+              <span className="text-xs bg-slate-200 px-2 py-1 rounded">
+                {o.estado}
+              </span>
 
-          <button onClick={() => cambiarEstado(o.id, "entregado")}>
-            Entregado
-          </button>
+            </div>
+          ))}
+
         </div>
-      ))}
+
+        {/* RESUMEN */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <h2 className="font-bold mb-4">Resumen</h2>
+
+          <p className="text-sm mb-2">
+            💰 Ingresos: <b>{formato(ingresos)}</b>
+          </p>
+
+          <p className="text-sm mb-2">
+            📦 Órdenes activas: <b>{pendientes + proceso}</b>
+          </p>
+
+          <p className="text-sm mb-2">
+            ✅ Finalizadas: <b>{terminadas + entregadas}</b>
+          </p>
+
+        </div>
+
+      </div>
+
     </div>
+  );
+}
+
+// 🔹 CARD
+function Card({ title, value, color }) {
+  return (
+    <div className={`p-4 rounded-xl text-white shadow-sm ${color}`}>
+      <p className="text-sm opacity-80">{title}</p>
+      <h2 className="text-2xl font-bold mt-1">{value}</h2>
+    </div>
+  );
+}
+
+// 🔐 APP
+function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
+
+  if (!user) return <Login />;
+
+  return (
+    <Router>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/clientes" element={<Clientes user={user} />} />
+          <Route path="/cotizaciones" element={<Cotizaciones user={user} />} />
+          <Route path="/ordenes" element={<Ordenes user={user} />} />
+        </Routes>
+      </Layout>
+    </Router>
   );
 }
 
